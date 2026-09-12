@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Шифровальня — Цезарь, Виженер, AES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #eef0e8;
+    --card-bg: #f9f8f2;
+    --field-bg: #f1efe4;
+    --field-bg-focus: #ffffff;
+    --border: #ddd7c4;
+    --border-strong: #c7c0a9;
+    --text: #2b2a24;
+    --text-muted: #6f6c5e;
+    --text-faint: #9b9683;
+    --accent: #a4573a;
+    --accent-ink: #fbf7ee;
+    --danger: #a8402f;
+    --danger-bg: #f7e9e4;
+    --radius-card: 22px;
+    --radius-field: 12px;
+    --radius-pill: 999px;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-ui: 'Work Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{ margin:0; padding:0; }
+
+  body{
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    display:flex;
+    justify-content:center;
+    padding: 60px 20px 70px;
+  }
+
+  .page{ width:100%; max-width: 620px; }
+
+  /* ---------- Hero ---------- */
+
+  .hero{
+    display:flex;
+    align-items:center;
+    gap: 26px;
+    margin-bottom: 38px;
+  }
+
+  .hero-wheel{ flex: 0 0 auto; width: 118px; height: 118px; }
+  .hero-wheel svg{ width:100%; height:100%; overflow:visible; }
+
+  .wheel-ring{ fill:none; stroke: var(--border-strong); stroke-width: 1; }
+  .wheel-hub{ fill: var(--card-bg); stroke: var(--accent); stroke-width: 1.4; transition: stroke .25s ease; }
+  .wheel-pointer{ stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; transition: stroke .25s ease; }
+
+  .wheel-letter{
+    font-family: var(--font-mono);
+    font-size: 9px;
+    fill: var(--text-faint);
+  }
+  .wheel-letter-inner{
+    fill: var(--accent);
+    font-weight: 500;
+    transition: fill .25s ease;
+  }
+
+  .wheel-inner-group{
+    transform-origin: 110px 110px;
+    animation: spinIn 1s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .wheel-outer-group{ opacity: 0; animation: fadeIn .7s ease-out .12s both; }
+
+  @keyframes spinIn{ from{ transform: rotate(-40deg); opacity:0; } to{ transform: rotate(0); opacity:1; } }
+  @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
+
+  @media (prefers-reduced-motion: reduce){
+    .wheel-inner-group, .wheel-outer-group{ animation:none; opacity:1; }
+  }
+
+  .hero-text h1{
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 1.12;
+    margin: 0 0 9px;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .hero-text p{
+    margin:0;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    max-width: 36ch;
+  }
+
+  /* ---------- Card ---------- */
+
+  .card{
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 30px 28px;
+    box-shadow: 0 1px 2px rgba(43,42,36,0.03), 0 12px 28px -18px rgba(43,42,36,0.18);
+  }
+
+  .cipher-select{
+    display:flex;
+    gap: 26px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+
+  .cipher-tab{
+    background:none;
+    border:none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 9px 1px 11px;
+    font-family: var(--font-ui);
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--text-faint);
+    cursor: pointer;
+    transition: color .18s ease, border-color .18s ease;
+  }
+
+  .cipher-tab:hover{ color: var(--text); }
+
+  .cipher-tab.active{
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .cipher-desc{
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0 0 24px;
+  }
+
+  .field{ margin-bottom: 18px; }
+
+  .field label{
+    display:block;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 7px;
+    font-weight: 500;
+  }
+
+  .result-label-row{ display:flex; align-items:center; justify-content:space-between; }
+
+  .key-input-wrap{ display:flex; gap: 8px; }
+
+  input[type="text"], input[type="number"], input[type="password"]{
+    width: 100%;
+    background: var(--field-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-field);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    padding: 11px 13px;
+    transition: border-color .15s ease, background .15s ease;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+  input[type="number"]{ -moz-appearance: textfield; }
+
+  input:focus{
+    outline:none;
+    border-color: var(--accent);
+    background: var(--field-bg-focus);
+  }
+
+  input:focus-visible, button:focus-visible, textarea:focus-visible{
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .icon-btn{
+    flex: 0 0 auto;
+    width: 42px;
+    display:flex; align-items:center; justify-content:center;
+    background: var(--field-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-field);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .icon-btn:hover{ color: var(--text); border-color: var(--border-strong); }
+  .icon-btn svg{ width: 17px; height: 17px; }
+
+  .hint{
+    margin: 7px 2px 0;
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.5;
+  }
+
+  textarea{
+    width: 100%;
+    min-height: 108px;
+    background: var(--field-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-field);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    padding: 13px;
+    resize: vertical;
+    transition: border-color .15s ease, background .15s ease;
+  }
+
+  textarea:focus{ outline:none; border-color: var(--accent); background: var(--field-bg-focus); }
+  textarea[readonly]{ color: var(--text); cursor: text; }
+
+  .actions{ display:flex; gap: 10px; margin-bottom: 18px; }
+
+  .btn-action{
+    flex: 1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 8px;
+    border-radius: var(--radius-pill);
+    padding: 12px 14px;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--card-bg);
+    border: 1.5px solid var(--border-strong);
+    color: var(--text-muted);
+    transition: background .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .1s ease;
+  }
+
+  .btn-action .btn-icon{ width: 16px; height:16px; flex-shrink:0; }
+
+  .btn-action:hover:not(:disabled):not(.is-active){ border-color: var(--accent); color: var(--text); }
+  .btn-action:active:not(:disabled){ transform: scale(0.98); }
+
+  .btn-action.is-active{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: 0 6px 14px -8px var(--accent);
+  }
+
+  .btn-action:disabled{ opacity: .55; cursor: default; transform: none; }
+
+  .btn-copy{
+    display:flex; align-items:center; gap:6px;
+    border:none; background:none;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor:pointer;
+    padding: 4px 2px;
+  }
+  .btn-copy svg{ width:14px; height:14px; }
+  .btn-copy:hover{ color: var(--accent); }
+
+  .error{
+    background: var(--danger-bg);
+    border: 1px solid rgba(168,64,47,0.25);
+    color: var(--danger);
+    font-size: 12.5px;
+    line-height: 1.5;
+    padding: 11px 13px;
+    border-radius: var(--radius-field);
+    margin-bottom: 18px;
+  }
+
+  .hidden{ display:none !important; }
+
+  .footer{ text-align:center; margin-top: 24px; }
+  .footer p{ font-size: 11.5px; color: var(--text-faint); margin:0; }
+
+  @media (max-width: 520px){
+    body{ padding: 40px 14px 56px; }
+    .hero{ flex-direction: column; align-items: flex-start; gap: 16px; }
+    .hero-wheel{ width: 96px; height: 96px; }
+    .hero-text h1{ font-size: 27px; }
+    .card{ padding: 22px 18px; }
+    .actions{ flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="hero-wheel">
+      <svg id="cipherWheel" viewBox="0 0 220 220"></svg>
+    </div>
+    <div class="hero-text">
+      <h1>Шифровальня</h1>
+      <p>От шифра Цезаря до AES-256 — шифруйте и расшифровывайте текст прямо в браузере, без отправки на сервер.</p>
+    </div>
+  </header>
+
+  <main class="card">
+
+    <div class="cipher-select" role="tablist" aria-label="Выбор шифра">
+      <button class="cipher-tab active" data-cipher="caesar" role="tab" aria-selected="true">Цезарь</button>
+      <button class="cipher-tab" data-cipher="vigenere" role="tab" aria-selected="false">Виженер</button>
+      <button class="cipher-tab" data-cipher="aes" role="tab" aria-selected="false">AES-256</button>
+    </div>
+
+    <p class="cipher-desc" id="cipherDesc">Древнеримский шифр простой замены: каждая буква сдвигается по алфавиту на фиксированное число позиций.</p>
+
+    <div class="field">
+      <label for="keyInput" id="keyLabel">Сдвиг</label>
+      <div class="key-input-wrap">
+        <input id="keyInput" type="number" value="3" inputmode="numeric" autocomplete="off">
+        <button id="toggleKeyVisibility" class="icon-btn hidden" type="button" title="Показать пароль" aria-label="Показать пароль">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <p class="hint" id="keyHint">Целое число, например 3 — каждая буква сдвигается на 3 позиции вперёд.</p>
+    </div>
+
+    <div class="field">
+      <label for="inputText">Исходный текст</label>
+      <textarea id="inputText" placeholder="Введите текст, который нужно зашифровать или расшифровать…"></textarea>
+    </div>
+
+    <div class="actions">
+      <button id="encryptBtn" class="btn-action" type="button">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span>Зашифровать</span>
+      </button>
+      <button id="decryptBtn" class="btn-action" type="button">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8 11V7a4 4 0 0 1 7.75-1.5"/></svg>
+        <span>Расшифровать</span>
+      </button>
+    </div>
+
+    <div id="errorBox" class="error hidden" role="alert"></div>
+
+    <div class="field" style="margin-bottom:0;">
+      <div class="result-label-row">
+        <label for="outputText">Результат</label>
+        <button id="copyBtn" class="btn-copy" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span id="copyLabel">Копировать</span>
+        </button>
+      </div>
+      <textarea id="outputText" readonly placeholder="Здесь появится результат"></textarea>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <p>Все вычисления происходят локально в вашем браузере, с помощью Web Crypto API для AES.</p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+
+  /* =========================================================
+     Алфавиты и базовые шифры (Цезарь / Виженер)
+  ========================================================= */
+
+  const LAT_LOWER = 'abcdefghijklmnopqrstuvwxyz';
+  const LAT_UPPER = LAT_LOWER.toUpperCase();
+  const CYR_LOWER = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
+  const CYR_UPPER = CYR_LOWER.toUpperCase();
+  const ALPHABETS = [LAT_LOWER, LAT_UPPER, CYR_LOWER, CYR_UPPER];
+
+  function shiftChar(ch, shift){
+    for(const alpha of ALPHABETS){
+      const idx = alpha.indexOf(ch);
+      if(idx !== -1){
+        const len = alpha.length;
+        const newIdx = ((idx + shift) % len + len) % len;
+        return alpha[newIdx];
+      }
+    }
+    return ch;
+  }
+
+  function caesar(text, shift){
+    return Array.from(text).map(c => shiftChar(c, shift)).join('');
+  }
+
+  function letterShiftValue(ch){
+    for(const alpha of ALPHABETS){
+      const idx = alpha.indexOf(ch);
+      if(idx !== -1) return idx;
+    }
+    return null;
+  }
+
+  function vigenere(text, key, decrypt){
+    const keyLetters = Array.from(key).filter(c => letterShiftValue(c) !== null);
+    if(keyLetters.length === 0){
+      throw new Error('Ключевое слово должно содержать хотя бы одну букву (латиница или кириллица).');
+    }
+    let ki = 0;
+    return Array.from(text).map(ch => {
+      const val = letterShiftValue(ch);
+      if(val === null) return ch;
+      const kShift = letterShiftValue(keyLetters[ki % keyLetters.length]);
+      ki++;
+      return shiftChar(ch, decrypt ? -kShift : kShift);
+    }).join('');
+  }
+
+  /* =========================================================
+     AES-256-GCM через Web Crypto API
+     Формат вывода: base64( salt(16) | iv(12) | ciphertext )
+  ========================================================= */
+
+  function bufToBase64(buf){
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for(let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  function base64ToBuf(b64){
+    const binary = atob(b64.trim());
+    const bytes = new Uint8Array(binary.length);
+    for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  async function deriveAesKey(passphrase, salt){
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', enc.encode(passphrase), { name: 'PBKDF2' }, false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  async function aesEncrypt(text, passphrase){
+    const enc = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveAesKey(passphrase, salt);
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text));
+    const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+    combined.set(salt, 0);
+    combined.set(iv, salt.length);
+    combined.set(new Uint8Array(ciphertext), salt.length + iv.length);
+    return bufToBase64(combined.buffer);
+  }
+
+  async function aesDecrypt(b64, passphrase){
+    let combinedBuf;
+    try{
+      combinedBuf = base64ToBuf(b64);
+    }catch(e){
+      throw new Error('Неверный формат зашифрованных данных: ожидается строка в base64.');
+    }
+    const bytes = new Uint8Array(combinedBuf);
+    if(bytes.length < 29){
+      throw new Error('Неверный формат зашифрованных данных.');
+    }
+    const salt = bytes.slice(0, 16);
+    const iv = bytes.slice(16, 28);
+    const data = bytes.slice(28);
+    const key = await deriveAesKey(passphrase, salt);
+    try{
+      const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+      return new TextDecoder().decode(plainBuf);
+    }catch(e){
+      throw new Error('Не удалось расшифровать: неверный пароль или повреждённые данные.');
+    }
+  }
+
+  /* =========================================================
+     Декоративное колесо шифра Цезаря
+  ========================================================= */
+
+  function initWheel(){
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.getElementById('cipherWheel');
+    const cx = 110, cy = 110;
+    const outerR = 92, innerR = 62;
+    const letters = LAT_UPPER.split('');
+    const shift = 3;
+
+    const outerRing = document.createElementNS(svgNS, 'circle');
+    outerRing.setAttribute('cx', cx); outerRing.setAttribute('cy', cy);
+    outerRing.setAttribute('r', outerR + 12);
+    outerRing.setAttribute('class', 'wheel-ring');
+    svg.appendChild(outerRing);
+
+    const innerRingBg = document.createElementNS(svgNS, 'circle');
+    innerRingBg.setAttribute('cx', cx); innerRingBg.setAttribute('cy', cy);
+    innerRingBg.setAttribute('r', innerR + 12);
+    innerRingBg.setAttribute('class', 'wheel-ring');
+    svg.appendChild(innerRingBg);
+
+    const outerGroup = document.createElementNS(svgNS, 'g');
+    outerGroup.setAttribute('class', 'wheel-outer-group');
+    const innerGroup = document.createElementNS(svgNS, 'g');
+    innerGroup.setAttribute('class', 'wheel-inner-group');
+
+    letters.forEach((letter, i) => {
+      const angle = (i / letters.length) * 2 * Math.PI - Math.PI / 2;
+
+      const xo = cx + outerR * Math.cos(angle);
+      const yo = cy + outerR * Math.sin(angle);
+      const to = document.createElementNS(svgNS, 'text');
+      to.setAttribute('x', xo); to.setAttribute('y', yo);
+      to.setAttribute('text-anchor', 'middle');
+      to.setAttribute('dominant-baseline', 'middle');
+      to.setAttribute('class', 'wheel-letter');
+      to.textContent = letter;
+      outerGroup.appendChild(to);
+
+      const innerLetter = letters[(i + shift) % letters.length];
+      const xi = cx + innerR * Math.cos(angle);
+      const yi = cy + innerR * Math.sin(angle);
+      const ti = document.createElementNS(svgNS, 'text');
+      ti.setAttribute('x', xi); ti.setAttribute('y', yi);
+      ti.setAttribute('text-anchor', 'middle');
+      ti.setAttribute('dominant-baseline', 'middle');
+      ti.setAttribute('class', 'wheel-letter wheel-letter-inner');
+      ti.textContent = innerLetter;
+      innerGroup.appendChild(ti);
+    });
+
+    svg.appendChild(outerGroup);
+    svg.appendChild(innerGroup);
+
+    const hub = document.createElementNS(svgNS, 'circle');
+    hub.setAttribute('cx', cx); hub.setAttribute('cy', cy);
+    hub.setAttribute('r', 34);
+    hub.setAttribute('class', 'wheel-hub');
+    svg.appendChild(hub);
+
+    const pointer = document.createElementNS(svgNS, 'line');
+    pointer.setAttribute('x1', cx); pointer.setAttribute('y1', cy);
+    pointer.setAttribute('x2', cx); pointer.setAttribute('y2', cy - 24);
+    pointer.setAttribute('class', 'wheel-pointer');
+    svg.appendChild(pointer);
+  }
+
+  initWheel();
+
+  /* =========================================================
+     Управление интерфейсом
+  ========================================================= */
+
+  const tabs = Array.from(document.querySelectorAll('.cipher-tab'));
+  const cipherDesc = document.getElementById('cipherDesc');
+  const keyLabel = document.getElementById('keyLabel');
+  const keyHint = document.getElementById('keyHint');
+  const keyInput = document.getElementById('keyInput');
+  const toggleKeyVisibility = document.getElementById('toggleKeyVisibility');
+  const inputText = document.getElementById('inputText');
+  const outputText = document.getElementById('outputText');
+  const encryptBtn = document.getElementById('encryptBtn');
+  const decryptBtn = document.getElementById('decryptBtn');
+  const copyBtn = document.getElementById('copyBtn');
+  const copyLabel = document.getElementById('copyLabel');
+  const errorBox = document.getElementById('errorBox');
+
+  const EYE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_CLOSED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.6 10.6 0 0 1 12 5c7 0 10.5 7 10.5 7a15.6 15.6 0 0 1-3.4 4.3M6.6 6.6C3.4 8.6 1.5 12 1.5 12s3.5 7 10.5 7c1.4 0 2.7-.3 3.9-.7"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+
+  const CIPHERS = {
+    caesar: {
+      accent: '#a4573a',
+      desc: 'Древнеримский шифр простой замены: каждая буква сдвигается по алфавиту на фиксированное число позиций.',
+      label: 'Сдвиг',
+      hint: 'Целое число, например 3 — каждая буква сдвигается на 3 позиции вперёд.',
+      inputType: 'number',
+      placeholder: '',
+      defaultValue: '3'
+    },
+    vigenere: {
+      accent: '#a4573a',
+      desc: 'Полиалфавитный шифр XVI века: сдвиг каждой буквы задаётся своей буквой ключевого слова.',
+      label: 'Ключевое слово',
+      hint: 'Слово или фраза, задающая переменный сдвиг. Например: шифр.',
+      inputType: 'text',
+      placeholder: 'например: шифр',
+      defaultValue: ''
+    },
+    aes: {
+      accent: '#2f5f63',
+      desc: 'Современный симметричный шифр — здесь используется режим AES-256-GCM с проверкой подлинности данных.',
+      label: 'Пароль',
+      hint: 'Пароль превращается в 256-битный ключ через PBKDF2 (100 000 итераций). Тот же пароль понадобится для расшифровки.',
+      inputType: 'password',
+      placeholder: 'придумайте надёжный пароль',
+      defaultValue: ''
+    }
+  };
+
+  let currentCipher = 'caesar';
+
+  function switchCipher(name){
+    currentCipher = name;
+    const cfg = CIPHERS[name];
+
+    tabs.forEach(tab => {
+      const active = tab.dataset.cipher === name;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+
+    document.documentElement.style.setProperty('--accent', cfg.accent);
+
+    cipherDesc.textContent = cfg.desc;
+    keyLabel.textContent = cfg.label;
+    keyHint.textContent = cfg.hint;
+    keyInput.type = cfg.inputType;
+    keyInput.placeholder = cfg.placeholder;
+    keyInput.value = cfg.defaultValue;
+
+    toggleKeyVisibility.classList.toggle('hidden', name !== 'aes');
+    toggleKeyVisibility.innerHTML = EYE_OPEN;
+
+    outputText.value = '';
+    hideError();
+    encryptBtn.classList.remove('is-active');
+    decryptBtn.classList.remove('is-active');
+  }
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => switchCipher(tab.dataset.cipher));
+  });
+
+  toggleKeyVisibility.addEventListener('click', () => {
+    const showing = keyInput.type === 'text';
+    keyInput.type = showing ? 'password' : 'text';
+    toggleKeyVisibility.innerHTML = showing ? EYE_OPEN : EYE_CLOSED;
+  });
+
+  function showError(message){
+    errorBox.textContent = message;
+    errorBox.classList.remove('hidden');
+  }
+
+  function hideError(){
+    errorBox.classList.add('hidden');
+    errorBox.textContent = '';
+  }
+
+  function setBusy(busy){
+    encryptBtn.disabled = busy;
+    decryptBtn.disabled = busy;
+  }
+
+  function setActiveAction(action){
+    encryptBtn.classList.toggle('is-active', action === 'encrypt');
+    decryptBtn.classList.toggle('is-active', action === 'decrypt');
+  }
+
+  async function handle(action){
+    hideError();
+    setActiveAction(action);
+
+    const text = inputText.value;
+    const key = keyInput.value;
+
+    if(!text){
+      showError('Введите текст в поле «Исходный текст».');
+      return;
+    }
+
+    setBusy(true);
+    try{
+      let result;
+
+      if(currentCipher === 'caesar'){
+        const shift = parseInt(key, 10);
+        if(isNaN(shift)){
+          throw new Error('Сдвиг должен быть целым числом.');
+        }
+        result = caesar(text, action === 'encrypt' ? shift : -shift);
+
+      } else if(currentCipher === 'vigenere'){
+        if(!key){
+          throw new Error('Введите ключевое слово.');
+        }
+        result = vigenere(text, key, action === 'decrypt');
+
+      } else {
+        if(!key){
+          throw new Error('Введите пароль.');
+        }
+        result = action === 'encrypt'
+          ? await aesEncrypt(text, key)
+          : await aesDecrypt(text, key);
+      }
+
+      outputText.value = result;
+
+    }catch(err){
+      showError(err.message || 'Произошла ошибка.');
+    }finally{
+      setBusy(false);
+    }
+  }
+
+  encryptBtn.addEventListener('click', () => handle('encrypt'));
+  decryptBtn.addEventListener('click', () => handle('decrypt'));
+
+  copyBtn.addEventListener('click', async () => {
+    if(!outputText.value) return;
+    try{
+      await navigator.clipboard.writeText(outputText.value);
+    }catch(e){
+      outputText.removeAttribute('readonly');
+      outputText.select();
+      document.execCommand('copy');
+      outputText.setAttribute('readonly', 'true');
+    }
+    copyLabel.textContent = 'Скопировано';
+    setTimeout(() => { copyLabel.textContent = 'Копировать'; }, 1500);
+  });
+
+  switchCipher('caesar');
+
+})();
+</script>
+
+</body>
+</html>
